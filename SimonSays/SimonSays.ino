@@ -1,321 +1,408 @@
-/**
- * An Arduino circuit design and program that simulates the game "Simon Says".
- *
- * Author: Chris Joyce
- * License: MIT
- */
+/*Simon Says game. Now with sound effects. 
+
+Originaly made by Robert Spann
+Code trimmed and sound effects added by digimike
+
+Buttons are to be set on there designated pins without pull down resistors
+and connected to ground rather then +5. 
+*/
 
 // Turn debug mode on or off; this toggles serial monitor printing.
 const boolean DEBUG = true;
+const boolean SOUND = false;
 
-// Define LED pin positions.
-const int RED_1 = 10;
-const int RED_2 = 9;
-const int RED_3 = 8;
-const int SIMON_1 = 7;
-const int SIMON_2 = 6;
-const int SIMON_3 = 5;
-const int SIMON_4 = 4;
-const int SIMONBUTTON_1 = 3;
-const int SIMONBUTTON_2 = 2;
-const int SIMONBUTTON_3 = 1;
-const int SIMONBUTTON_4 = 12;
+#include <Tone.h>
+Tone speakerpin;
+int starttune[] = {NOTE_C4, NOTE_F4, NOTE_C4, NOTE_F4, NOTE_C4, NOTE_F4, NOTE_C4, NOTE_F4, NOTE_G4, NOTE_F4, NOTE_E4, NOTE_F4, NOTE_G4};
+int duration2[] = {100, 200, 100, 200, 100, 400, 100, 100, 100, 100, 200, 100, 500};
+int note[] = {NOTE_C4, NOTE_C4, NOTE_G4, NOTE_C5, NOTE_G4, NOTE_C5};
+int duration[] = {100, 100, 100, 300, 100, 300};
 
-const int QTY = 7;
-const int LEDS[QTY] = {RED_1, RED_2, RED_3, SIMON_1, SIMON_2, SIMON_3, SIMON_4};
-
-// Define switch pin positions.
-const int START = 11;
-// const int BUTTONS = A1;
-
-// Define game settings.
-const int LIGHT_DELAY = 700;
-const int SHOW_DELAY = 200 ;
-const int GAME_SPEED = 700;
-const int TOTAL_LEVELS = 128;
+int button[] = {6, 7, 8, 9}; //The four button input pins
+int ledpin[] = {2, 3, 4, 5};  // LED pins
+int turn = 0;  // turn counter
+int buttonstate = LOW;  // button state checker
+int randomArray[100]; //Intentionally long to store up to 100 inputs (doubtful anyone will get this far)
+int inputArray[100];  
+int show = 500 ; // Show the led for
+int gap = 200 ; // Gap between
 const int TOTAL_LIVES = 3;
-boolean gameStart = false;
+int lives = TOTAL_LIVES;
+
+unsigned long previousMillis = 0;
+unsigned long currentMillis = 0;
+const long interval = 20000;
+
+void setup() 
+{
+  if (DEBUG) Serial.begin(9600);
+  speakerpin.begin(12); // speaker is on pin 13
+
+  for(int x=0; x<4; x++)  // LED pins are outputs
+  {
+    pinMode(ledpin[x], OUTPUT);
+  }
+  
+  for(int x=0; x<4; x++) 
+  {
+    if (DEBUG) Serial.print("ButtonPin: ");
+    if (DEBUG) Serial.println(button[x]);
+      
+    pinMode(button[x], INPUT);  // button pins are inputs
+    digitalWrite(button[x], HIGH);  // enable internal pullup; buttons start in high position; logic reversed
+  }
+
+  randomSeed(analogRead(0)); //Added to generate "more randomness" with the randomArray for the output function
+  for (int thisNote = 0; thisNote < 13; thisNote ++) {
+     // play the next note:
+     if (SOUND) speakerpin.play(starttune[thisNote]);
+     // hold the note:
+     if (thisNote==0 || thisNote==2 || thisNote==4 || thisNote== 6)
+     {
+       digitalWrite(ledpin[0], HIGH);
+     }
+     if (thisNote==1 || thisNote==3 || thisNote==5 || thisNote== 7 || thisNote==9 || thisNote==11)
+     {
+       digitalWrite(ledpin[1], HIGH);
+     }
+     if (thisNote==8 || thisNote==12)
+     {
+       digitalWrite(ledpin[2], HIGH);
+     }  
+     if (thisNote==10)
+     {   
+       digitalWrite(ledpin[3], HIGH);
+     }
+     delay(duration2[thisNote]);
+     // stop for the next note:
+     if (SOUND) speakerpin.stop();
+
+    
+     digitalWrite(ledpin[0], LOW);
+     digitalWrite(ledpin[1], LOW);
+     digitalWrite(ledpin[2], LOW);
+     digitalWrite(ledpin[3], LOW);
+     delay(25);
+    }
+  delay(1000);
+}
+ 
+void loop() 
+{   
+  for (int y=0; y<=99; y++)
+  {
+    //function for generating the array to be matched by the player
+    digitalWrite(ledpin[0], HIGH);
+    digitalWrite(ledpin[1], HIGH);
+    digitalWrite(ledpin[2], HIGH);
+    digitalWrite(ledpin[3], HIGH);
+  
+    for (int thisNote = 0; thisNote < 6; thisNote ++) {
+     // play the next note:
+     if (SOUND) speakerpin.play(note[thisNote]);
+     // hold the note:
+     delay(duration[thisNote]);
+     // stop for the next note:
+     if (SOUND) speakerpin.stop();
+     delay(25);
+    }
+    
+    digitalWrite(ledpin[0], LOW);
+    digitalWrite(ledpin[1], LOW);
+    digitalWrite(ledpin[2], LOW);
+    digitalWrite(ledpin[3], LOW);
+    delay(1000);
+  
+    for (int y=turn; y <= turn; y++)
+    { //Limited by the turn variable
+      Serial.println(""); //Some serial output to follow along
+      Serial.print("Turn: ");
+      Serial.print(y);
+      Serial.println(" ");
+
+      digitalWrite(ledpin[0], HIGH);
+      digitalWrite(ledpin[1], HIGH);
+      digitalWrite(ledpin[2], HIGH);
+      digitalWrite(ledpin[3], HIGH);
+    
+      randomArray[y] = random(1, 5); //Assigning a random number (1-4) to the randomArray[y], y being the turn count
+      for (int x=0; x <= turn; x++)
+      {
+
+        Serial.print(randomArray[x]);
+        Serial.print(" ");
+        for(int y=0; y<4; y++)
+        {
+      
+          if (randomArray[x] == 1 && ledpin[y] == ledpin[0]) 
+          {  //if statements to display the stored values in the array
+            digitalWrite(ledpin[y], LOW);
+            if (SOUND) speakerpin.play(NOTE_G3, 100);
+            delay(show);
+            digitalWrite(ledpin[y], HIGH);
+            delay(gap);
+          }
+
+          if (randomArray[x] == 2 && ledpin[y] == ledpin[1]) 
+          {
+            digitalWrite(ledpin[y], LOW);
+            if (SOUND) speakerpin.play(NOTE_A3, 100);
+            delay(show);
+            digitalWrite(ledpin[y], HIGH);
+            delay(gap);
+          }
+  
+          if (randomArray[x] == 3 && ledpin[y] == ledpin[2]) 
+          {
+            digitalWrite(ledpin[y], LOW);
+            if (SOUND) speakerpin.play(NOTE_B3, 100);
+            delay(show);
+            digitalWrite(ledpin[y], HIGH);
+            delay(gap);
+          }
+
+          if (randomArray[x] == 4 && ledpin[y] == ledpin[3]) 
+          {
+            digitalWrite(ledpin[y], LOW);
+            if (SOUND) speakerpin.play(NOTE_C4, 100);
+            delay(show);
+            digitalWrite(ledpin[y], HIGH);
+            delay(gap);
+          }
+        }
+      }
+    }
+    digitalWrite(ledpin[0], LOW);
+    digitalWrite(ledpin[1], LOW);
+    digitalWrite(ledpin[2], LOW);
+    digitalWrite(ledpin[3], LOW);
+    Serial.println("");
+    input();
+  }
+}
+ 
+ 
+ 
+void input() { //Function for allowing user input and checking input against the generated array
+
+  int error = 0 ;
+  for (int x=0; x <= turn;)
+  { //Statement controlled by turn count
+
+    for(int y=0; y<4; y++)
+    {
+      
+    currentMillis = millis();
+    if (currentMillis - previousMillis >= interval) {
+        sickofwaiting() ;
+        previousMillis = currentMillis;
+       }
+       
+      buttonstate = digitalRead(button[y]);
+    
+      if (buttonstate == LOW && button[y] == button[0])
+      { //Checking for button push
+        digitalWrite(ledpin[0], HIGH);
+        if (SOUND) speakerpin.play(NOTE_G3, 100);
+        delay(200);
+        digitalWrite(ledpin[0], LOW);
+        inputArray[x] = 1;
+        delay(250);
+        Serial.print(" ");
+        Serial.print(1);
+        if (inputArray[x] != randomArray[x]) { //Checks value input by user and checks it against
+          fail(); 
+          if (DEBUG) Serial.println("fail returned");
+          error = 1 ;
+          turn--; //the value in the same spot on the generated array
+        } else {                                     //The fail function is called if it does not match
+          x++;
+        }
+      }
+       if (buttonstate == LOW && button[y] == button[1])
+      {
+        digitalWrite(ledpin[1], HIGH);
+        if (SOUND) speakerpin.play(NOTE_A3, 100);
+        delay(200);
+        digitalWrite(ledpin[1], LOW);
+        inputArray[x] = 2;
+        delay(250);
+        Serial.print(" ");
+        Serial.print(2);
+        if (inputArray[x] != randomArray[x]) {
+          fail();
+          error = 1 ;
+          turn--;
+        } else {                                     //The fail function is called if it does not match
+          x++;
+        }
+      }
+
+      if (buttonstate == LOW && button[y] == button[2])
+      {
+        digitalWrite(ledpin[2], HIGH);
+        if (SOUND) speakerpin.play(NOTE_B3, 100);
+        delay(200);
+        digitalWrite(ledpin[2], LOW);
+        inputArray[x] = 3;
+        delay(250);
+        Serial.print(" ");
+        Serial.print(3);
+        if (inputArray[x] != randomArray[x]) {
+          fail();
+          error = 1 ;
+          turn--;
+        } else {                                     //The fail function is called if it does not match
+          x++;
+        }
+      }
+
+      if (buttonstate == LOW && button[y] == button[3])
+      {
+        digitalWrite(ledpin[3], HIGH);
+        if (SOUND) speakerpin.play(NOTE_C4, 100);
+        delay(200);
+        digitalWrite(ledpin[3], LOW);
+        inputArray[x] = 4;
+        delay(250);
+        Serial.print(" ");
+        Serial.print(4);
+        if (inputArray[x] != randomArray[x]) 
+        {
+          fail();
+          error = 1 ;
+          turn--;
+        } else {                                     //The fail function is called if it does not match
+          x++;
+        }
+      }
+
+    }
+  }
+  if (error > 0) {
+  if (DEBUG) Serial.println("in error ");
+  }
+  delay(500);
+  turn++; //Increments the turn count, also the last action before starting the output function over again
+}
+
+void fail() { //Function used if the player fails to match the sequence
+
+    if (DEBUG) Serial.println("Fail");
+    digitalWrite(ledpin[0], HIGH);
+    digitalWrite(ledpin[1], HIGH);
+    digitalWrite(ledpin[2], HIGH);
+    digitalWrite(ledpin[3], HIGH);
+    if (SOUND) speakerpin.play(NOTE_G3, 300);
+    delay(gap);
+    digitalWrite(ledpin[0], LOW);
+    digitalWrite(ledpin[1], LOW);
+    digitalWrite(ledpin[2], LOW);
+    digitalWrite(ledpin[3], LOW);
+    if (SOUND) speakerpin.play(NOTE_C3, 300);
+    delay(gap);
+
+    // Remove a life from the current total.
+    lives--;
+    if (DEBUG) Serial.print("Lives left :");
+    if (DEBUG) Serial.println(lives);
+    
+    // Turn on the next red LED.
+    if (lives == TOTAL_LIVES - 1) ; // digitalWrite(RED_1, HIGH);
+    else if (lives == TOTAL_LIVES - 2) ; //  digitalWrite(RED_2, HIGH);
+    else if (lives == TOTAL_LIVES - 3) ; //digitalWrite(RED_3, HIGH);
+    delay(gap);
+
+    if (lives == TOTAL_LIVES - 3) {
+      endofgame();
+    }
+   if (DEBUG) Serial.println("fail Done");
+}
 
 
-/**
- * Initialize the Arduino.
- */
-void setup() {
+void endofgame() { //Function used if the player fails to match the sequence
 
-    // Print debug results to the serial monitor.
-    if (DEBUG) Serial.begin(9600);
+  if (DEBUG) Serial.println("End of game");
+  for (int y=0; y<=2; y++)
+  { //Flashes lights for failure
+    
+    digitalWrite(ledpin[0], HIGH);
+    digitalWrite(ledpin[1], HIGH);
+    digitalWrite(ledpin[2], HIGH);
+    digitalWrite(ledpin[3], HIGH);
+    if (SOUND) speakerpin.play(NOTE_G3, 300);
+    delay(200);
+    digitalWrite(ledpin[0], LOW);
+    digitalWrite(ledpin[1], LOW);
+    digitalWrite(ledpin[2], LOW);
+    digitalWrite(ledpin[3], LOW);
+    if (SOUND) speakerpin.play(NOTE_C3, 300);
+    delay(200);
+  }
+  delay(500);
+  turn = -1; //Resets turn value so the game starts over without need for a reset button
+}
 
-    // Set all LEDs to output mode.
-    for (int i = 0; i < QTY; i++) {
-        pinMode(LEDS[i], OUTPUT);
+
+void sickofwaiting() { //Function used if the player fails to match the sequence
+
+  if (DEBUG) Serial.println("Sick of waiting");
+  for (int y=0; y<=2; y++)
+  { //Flashes lights for failure
+    
+    digitalWrite(ledpin[0], HIGH);
+    digitalWrite(ledpin[1], HIGH);
+    digitalWrite(ledpin[2], HIGH);
+    digitalWrite(ledpin[3], HIGH);
+    if (SOUND) speakerpin.play(NOTE_G3, 300);
+    delay(200);
+    digitalWrite(ledpin[0], LOW);
+    digitalWrite(ledpin[1], LOW);
+    digitalWrite(ledpin[2], LOW);
+    digitalWrite(ledpin[3], LOW);
+    if (SOUND) speakerpin.play(NOTE_C3, 300);
+    delay(200);
+  }
+
+    digitalWrite(ledpin[0], HIGH);
+    digitalWrite(ledpin[1], HIGH);
+    digitalWrite(ledpin[2], HIGH);
+    digitalWrite(ledpin[3], HIGH);
+    
+  int alive = 0 ;
+  do
+  {
+    delay(50);          // wait for sensors to stabilize
+        for(int y=0; y<4; y++)
+    {
+      buttonstate = digitalRead(button[y]);
+      if (buttonstate == LOW && button[y] == button[0]){
+        alive = 1 ;
+        if (DEBUG) Serial.println("button[0]");
+      }
+      
+      if (buttonstate == LOW && button[y] == button[1]){
+        alive = 1 ;
+      }
+
+      if (buttonstate == LOW && button[y] == button[2]){
+        alive = 1 ;
+      }
+
+      if (buttonstate == LOW && button[y] == button[3]){
+        alive = 1 ;
+      }
     }
 
-    // Set start switch to input mode.
-    pinMode(START, INPUT);
-    pinMode(SIMONBUTTON_1, INPUT);
-    pinMode(SIMONBUTTON_2, INPUT);
-    pinMode(SIMONBUTTON_3, INPUT);
-    pinMode(SIMONBUTTON_4, INPUT);
+  } while (alive < 1);
+
+    digitalWrite(ledpin[0], LOW);
+    digitalWrite(ledpin[1], LOW);
+    digitalWrite(ledpin[2], LOW);
+    digitalWrite(ledpin[3], LOW);
+  delay (500);
+
     
 }
 
 
-/**
- * Control the Arduino.
- */
-void loop() {
-
-  if (DEBUG) Serial.println("loop");
-    // Cycle LEDs until the player starts a game while checking for game start.
-    while (!gameStart) {
-      if (DEBUG) Serial.println("start LightShow");
-        playLightShow();  // The start switch starts a new game.
-    }
-
-    // Create a random "Simon Says" pattern.
-    if (DEBUG) Serial.println("Create pattern");
-    int pattern[TOTAL_LEVELS];
-    for (int i = 0; i < TOTAL_LEVELS; i++) {
-        int num = 1 + random(4);  // Random between [1, 4].
-        if (num == 1) pattern[i] = SIMON_1;
-        else if (num == 2) pattern[i] = SIMON_2;
-        else if (num == 3) pattern[i] = SIMON_3;
-        else pattern[i] = SIMON_4;
-    }
-
-    // Begin the game.
-    playGame(pattern);
-
-    // The game is over; turn off all lights and reset.
-    delay(LIGHT_DELAY);
-    gameStart = false;
-    for (int i = 0; i < QTY; i++) {
-        digitalWrite(LEDS[i], LOW);
-    }
-}
-
-
-/**
- * Return the LED associated with the active button switch.
- *
- * Args:
- *     keyVal: an integer from 3 to 1023 containing the analog switch value.
- *
- * Return:
- *     The corresponding LED from among the colored game diodes.
- */
-int getSimonLed(int keyVal) {
-
-  if (DEBUG) Serial.println("getSimonLed");
-    // Get the LED.
-    if (3 <= keyVal && keyVal <= 50) {
-      return SIMON_4;
-    } else if (500 <= keyVal && keyVal <= 550) {
-      return SIMON_3;
-    } else if (1000 <= keyVal && keyVal <= 1010) {
-      return SIMON_2;
-    } else if (keyVal >= 1020) {
-      return SIMON_1;
-    }
-
-    // The switch is not active.
-    return -1;
-}
-
-
-/**
- * Run the "Simon Says" game.
- *
- * Args:
- *     *pattern: a pointer to an integer array containing the game LED pattern.
- */
-void playGame(int *pattern) {
-    if (DEBUG) Serial.println("playGame");
-    // Set game parameters then begin.
-    int lives = TOTAL_LIVES;
-    int currentLevel = 1;
-    while (gameStart && lives > 0 && currentLevel < TOTAL_LEVELS) {
-      if (DEBUG) Serial.println("playGame");
-      if (DEBUG) Serial.print("lives : ");
-      if (DEBUG) Serial.print(lives);
-      if (DEBUG) Serial.print(" currentLevel : ");
-      if (DEBUG) Serial.print(currentLevel);
-      if (DEBUG) Serial.print(" TOTAL_LEVELS : ");
-      if (DEBUG) Serial.print(TOTAL_LEVELS);
-
-        if (DEBUG) Serial.println("Play pattern");
-        // Display the pattern.
-        for (int lvl = 0; lvl < currentLevel; lvl++) {
-            if (DEBUG) Serial.println(pattern[lvl]);
-            // Blink the current pattern LED.
-            digitalWrite(pattern[lvl], HIGH);
-            delay(GAME_SPEED);
-            digitalWrite(pattern[lvl], LOW);
-
-            // Do not wait after blinking the final pattern LED.
-            if (lvl + 1 != currentLevel) delay(GAME_SPEED);
-        }
-
-        // Check player input.
-        if (verifyPlayerInput(pattern, currentLevel)) {
-
-            // Check for game reset.
-            if (digitalRead(START)) {
-                gameStart = false;
-                signalGameChange(1);
-                return;
-            }
-
-            // The player was correct; move to the next level.
-            currentLevel++;
-            delay(GAME_SPEED);
-
-        // The player was incorrect; subtract a life.
-        } else {
-
-            // Remove a life from the current total.
-            lives--;
-
-            // Turn on the next red LED.
-            if (lives == TOTAL_LIVES - 1) digitalWrite(RED_1, HIGH);
-            else if (lives == TOTAL_LIVES - 2) digitalWrite(RED_2, HIGH);
-            else if (lives == TOTAL_LIVES - 3) digitalWrite(RED_3, HIGH);
-            delay(LIGHT_DELAY);
-        }
-    }
-}
-
-
-/**
- * Cycles LEDs on and off in a decorative pattern while waiting for game start.
- */
-void playLightShow() {    
-    // Cycle lights.
-    int startbuttonState = 0;
-    for (int i = 0; i < QTY; i++) {
-
-        // Get the last position in the array.
-        int last = QTY - 1 - i;
-
-        // Turn off previous lights.
-        if (i - 1 >= 0) {
-            digitalWrite(LEDS[i - 1], LOW);
-            digitalWrite(LEDS[last + 1], LOW);
-        }
-
-        // Turn on current lights.
-        digitalWrite(LEDS[i], HIGH);
-        digitalWrite(LEDS[last], HIGH);
-
-        // Check the start switch and buttons for a new game.
-        // if (digitalRead(START) || analogRead(BUTTONS) > 3) { 
-
-         startbuttonState = digitalRead(START) ;
-        if (startbuttonState == HIGH  ) {
-            if (DEBUG) Serial.println("button press start");
-            gameStart = true;
-            signalGameChange(2);
-            return;
-        }
-
-        // Wait before cycling the next set of lights.
-        delay(SHOW_DELAY);
-    }
-
-    // Turn off final LED pair.
-    digitalWrite(LEDS[0], LOW);
-    digitalWrite(LEDS[QTY-1], LOW);
-}
-
-
-/**
- * Blinks all LEDs to signal a change in game state.
- *
- * Args:
- *     blinks: an integer containing the number of times to blink all LEDs.
- */
-void signalGameChange(int blinks) {
-
-  if (DEBUG) Serial.println("signalGameChange : ");
-  if (DEBUG) Serial.println(blinks);
-    for (int j = 0; j < blinks; j++) {
-
-        // Turn on all LEDs.
-        for (int k = 0; k < QTY; k++) {
-            digitalWrite(LEDS[k], HIGH);
-        }
-        delay(LIGHT_DELAY);
-
-        // Turn off all LEDs.
-        for (int k = 0; k < QTY; k++) {
-            digitalWrite(LEDS[k], LOW);
-        }
-        delay(LIGHT_DELAY * 2);
-    }
-}
-
-
-/**
- * Determine whether the player successfully matched the pattern.
- *
- * Args:
- *     *pattern: a pointer to an integer array containing the game LED pattern.
- *     currentLevel: an integer specifying the current game level.
- *
- * Return:
- *     A boolean signaling whether the player correctly entered the current
- *     game pattern.
- */
-boolean verifyPlayerInput(int *pattern, int currentLevel) {
-
-    // Get player input up through the current game level.
-    int lvl = 0;
-    while (lvl < currentLevel) {
-
-        // Wait for a button press.
-        int simonLed = -1;
-        while (simonLed == -1) {
-
-            // Check for game reset.
-            if (digitalRead(START)) return true;
-
-            if (digitalRead(SIMONBUTTON_1)) {
-              simonLed = SIMON_1 ;
-              if (DEBUG) Serial.print("Button Press : ");
-              if (DEBUG) Serial.println("SIMON_1");
-            }
-
-            if (digitalRead(SIMONBUTTON_2)) {
-              simonLed = SIMON_2 ;
-              if (DEBUG) Serial.print("Button Press : ");
-              if (DEBUG) Serial.println("SIMON_2");
-            }
-            
-            if (digitalRead(SIMONBUTTON_3)) {
-              simonLed = SIMON_3 ;
-              if (DEBUG) Serial.print("Button Press : ");
-              if (DEBUG) Serial.println("SIMON_2");
-            }
-
-            if (digitalRead(SIMONBUTTON_4)) {
-              simonLed = SIMON_4 ;
-              if (DEBUG) Serial.print("Button Press : ");
-              if (DEBUG) Serial.println("SIMON_4");
-            }
-            // Check for a button press.
-          //  simonLed = getSimonLed(analogRead(BUTTONS));
-        }
-
-        // Blink the corresponding LED.
-        digitalWrite(simonLed, HIGH);
-        delay(GAME_SPEED);
-        digitalWrite(simonLed, LOW);
-
-        // Check if the button press was correct.
-        if (pattern[lvl] == simonLed) lvl++;
-        else return false;
-    }
-
-    // The player successfully matched the entire pattern.
-    return true;
-}
